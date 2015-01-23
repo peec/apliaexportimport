@@ -18,6 +18,7 @@ class ApliaHtmlToXmlFieldParser {
 
     /**
      * These are the DEFAULT tags that will be left. All other tags are stripped...
+     * The tags are eventually converted to EZ-XML-STYLE e.g. p => paragraph etc.
      */
     const ALLOWED_TAGS = 'p,img[src],a[href],h1,h2,h3,h4,h5,h6,b,strong';
 
@@ -357,6 +358,15 @@ class ApliaHtmlToXmlFieldParser {
     }
 
 
+    /**
+     * Gets defaultImgSrcResolver, downloads images found in src attributes and returns a path to the image.
+     * If the image already exist, it does not get downloaded.
+     *
+     *
+     * @param $tempDir A VALID PATH TO A temporary location of where to store downloaded images. e.g. /tmp/myexportedimagestest
+     * @return callable
+     * @throws Exception
+     */
     static public function defaultImageSrcResolver ($tempDir) {
         if (!is_dir($tempDir)) {
             throw new Exception("\$tempDir must be a valid folder to put temporary downloaded images.");
@@ -371,7 +381,11 @@ class ApliaHtmlToXmlFieldParser {
                 if (!file_exists($path)) {
                     if (copy($imageUrl, $path)) {
                         $imageLocation = $path;
+                    } else {
+                        // throw Exception ? or to harsh? I mean if the image src does not get found, lets do it silently.
                     }
+                } else {
+                    $imageLocation = $path;
                 }
             }
             return $imageLocation;
