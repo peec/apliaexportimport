@@ -17,7 +17,7 @@ use Symfony\Component\DomCrawler\Crawler;
 class ApliaHtmlToXmlFieldParser {
 
     /**
-     * These are the tags that will be left. All other tags are stripped...
+     * These are the DEFAULT tags that will be left. All other tags are stripped...
      */
     const ALLOWED_TAGS = 'p,img[src],a[href],h1,h2,h3,h4,h5,h6,b,strong';
 
@@ -27,11 +27,6 @@ class ApliaHtmlToXmlFieldParser {
      * @var HTMLPurifier
      */
     private $purifier;
-
-    /**
-     * @var string
-     */
-    private $html;
 
     /**
      * @var null
@@ -48,6 +43,7 @@ class ApliaHtmlToXmlFieldParser {
      */
     private $imageStorageNodeLocation = null;
 
+    public $messages = array();
 
     /**
      * Dont insert the same image to EZ many times, instead we keep track of a cache based on the URL of the image in the html..
@@ -56,26 +52,26 @@ class ApliaHtmlToXmlFieldParser {
     static $imageCache = array();
 
     /**
-     * @param $html
-     * @param eZContentObjectTreeNode $creator
      * @param callable $imageSrcResolverCallback A FUNCTION TO RESOLVE IMG's tags src location..
      *      U should download it and the return of this function should be a valid path (string) to the same
      *      image that we gave as an argument. e.g. http://test.com/test.png becomes DL'ed to a cache dir and path
      *      returned from this function can then be /tmp/test.png forexample. eZ can then know to insert the img.
      * @param eZContentObjectTreeNode $imageStorageNodeLocation
      */
-    public function __construct($html, eZUser $creator, $imageSrcResolverCallback, eZContentObjectTreeNode $imageStorageNodeLocation) {
+    public function __construct(
+        $imageSrcResolverCallback,
+        eZContentObjectTreeNode $imageStorageNodeLocation,
+        $allowedTags = self::ALLOWED_TAGS
+    ) {
 
 
         $this->setImageSrcResolverCallback($imageSrcResolverCallback);
         $this->setImageStorageNodeLocation($imageStorageNodeLocation);
-        $this->setDefaultNodeCreator($creator);
 
 
         $config = HTMLPurifier_Config::createDefault();
-        $config->set('HTML.Allowed', self::ALLOWED_TAGS);
+        $config->set('HTML.Allowed', $allowedTags);
         $this->purifier = new HTMLPurifier($config);
-        $this->html = $this->purifier->purify($html);
     }
 
     /**
@@ -106,6 +102,7 @@ class ApliaHtmlToXmlFieldParser {
     }
 
 
+
     /**
      * Logic for manipulating --> A <-- tags .
      *
@@ -116,14 +113,14 @@ class ApliaHtmlToXmlFieldParser {
         return function (Crawler $node, $i) use ($that) {
             $href = $node->attr('href');
             if ($href) {
-                out("HREF $href");
+                $that->log("HREF $href");
                 $oldNode = $node->getNode(0);
 
                 $urlID = eZURL::registerURL( $href );
                 $link = $this->dom_rename_element($oldNode, 'link', true);
                 $link->setAttribute('url_id', $urlID);
             } else {
-                out("href not found on a tag.");
+                $that->log("href not found on a tag.");
             }
         };
     }
@@ -166,17 +163,17 @@ class ApliaHtmlToXmlFieldParser {
             $imageLocation = call_user_func_array($this->imageSrcResolverCallback, array($imageUrl));
             if ($imageUrl && $imageLocation) {
                 if (file_exists($imageLocation)) {
-                    out("Using image $imageLocation");
+                    $that->log("Using image $imageLocation");
                     $imageObjectId = $this->storeOrRetrieveCachedImage($imageLocation);
                     $embed = $that->dom_rename_element($node->getNode(0), 'embed', true);
                     $embed->setAttribute('view', 'embed');
                     $embed->setAttribute('size', 'halfwidth');
                     $embed->setAttribute('object_id', $imageObjectId);
                 } else {
-                    out("Could not find image $imageLocation in folder, skipping...");
+                    $that->log("Could not find image $imageLocation in folder, skipping...");
                 }
             } else {
-                out("src not found in img tag. Was $imageUrl , must be prefixed with: " . WEBARKIV_IMAGE_PREFIX_IN_HTML . ' to be valid.');
+                $that->log("src not found in img tag. Was $imageUrl , must be prefixed with: " . WEBARKIV_IMAGE_PREFIX_IN_HTML . ' to be valid.');
             }
         };
     }
@@ -244,7 +241,7 @@ class ApliaHtmlToXmlFieldParser {
 
 
         if ( $contentObject ) {
-            out( "Image created. Content Object ID: " . $contentObject->attribute( 'id' ) );
+            $this->log( "Image created. Content Object ID: " . $contentObject->attribute( 'id' ) );
         } else {
             throw new Exception("Could not create image.");
         }
@@ -256,8 +253,8 @@ class ApliaHtmlToXmlFieldParser {
      * Parses HTML -> XMLField
      * @return DOMElement|null|string
      */
-    public function parse () {
-        $content = $this->html;
+    public function parse ($html) {
+        $content = $this->purifier->purify($html);
 
 
         $content = "<!doctype html><html><head><meta charset='utf-8' /></head><body>$content</body></html>";
@@ -349,10 +346,36 @@ class ApliaHtmlToXmlFieldParser {
      * @param eZContentObjectTreeNode $imageStorageNodeLocation
      * @return DOMElement|null|string
      */
-    static public function htmlToXMLField ($html, eZUser $creator, $imageSrcResolverCallback, eZContentObjectTreeNode $imageStorageNodeLocation) {
-        $parser = new self($html, $creator, $imageSrcResolverCallback, $imageStorageNodeLocation);
-        return $parser->parse();
+    static public function htmlToXMLField ($html, $imageSrcResolverCallback, eZContentObjectTreeNode $imageStorageNodeLocation) {
+        $parser = new self($imageSrcResolverCallback, $imageStorageNodeLocation);
+        return $parser->parse($html);
     }
 
+
+    public function log($message) {
+        $this->messages[] = $message;
+    }
+
+
+    static public function defaultImageSrcResolver ($tempDir) {
+        if (!is_dir($tempDir)) {
+            throw new Exception("\$tempDir must be a valid folder to put temporary downloaded images.");
+        }
+
+        return function ($imageUrl) use ($tempDir) {
+            $imageLocation = null;
+            // here we can DL the image by $imageUrl.. but we already have all images in a folder so not needed..
+            if (stripos($imageUrl, 'http') === 0) {
+                $filename = basename($imageUrl);
+                $path = "$tempDir/$filename";
+                if (!file_exists($path)) {
+                    if (copy($imageUrl, $path)) {
+                        $imageLocation = $path;
+                    }
+                }
+            }
+            return $imageLocation;
+        };
+    }
 
 }

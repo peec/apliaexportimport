@@ -1,0 +1,16 @@
+{
+    "name": "aplia/exportimport",
+    "type": "library",
+    "description": "Aplia Export Import Extension, lets you export and import xml to ez.",
+    "keywords": [],
+    "homepage": "http://aplia.no",
+    "license": "MIT",
+    "authors": [
+    ],
+    "require": {
+        "php": ">=5.3.0",
+        "symfony/dom-crawler": "@stable",
+        "symfony/css-selector": "@stable",
+        "ezyang/htmlpurifier": "4.6.*"
+    }
+}
