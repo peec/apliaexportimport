@@ -14,6 +14,8 @@ class ApliaContentClassNodeExporter {
 
     public $startAt = 0;
 
+    public $rootNode = 2;
+
     private $exportFolder;
 
 
@@ -241,10 +243,12 @@ class ApliaContentClassNodeExporter {
             throw new Exception("Content class identifier: '$contentClass' does not exist. It must exist to be exported.");
         }
 
+
+
         $nodes = eZContentObjectTreeNode::subTreeByNodeID(array(
             'ClassFilterType' => 'include',
             'ClassFilterArray' => array($contentClass)
-        ), 2);
+        ), $this->rootNode);
 
         $dom = new DOMDocument('1.0', 'utf-8');
         $root = $dom->createElement('export');
@@ -317,9 +321,10 @@ class ApliaContentClassNodeExporter {
         $this->script->startup();
 
 
-        $options = $this->script->getOptions( "[stop-at-index][start-at-index]", "[CLASS_IDENTIFIER]", array(
+        $options = $this->script->getOptions( "[stop-at-index][start-at-index][subtree-nodeid]", "[CLASS_IDENTIFIER]", array(
             'stop-at-index' => 'Stops after import of X nodes.',
-            'start-at-index' => 'Starts after X nodes are iterated.'
+            'start-at-index' => 'Starts after X nodes are iterated.',
+            'subtree-nodeid' => 'Exports from the given root node. Default is 2 (ALL objects).'
         ));
 
         if ( count( $options['arguments'] ) != 1 )
@@ -342,6 +347,9 @@ class ApliaContentClassNodeExporter {
         }
 
 
+        if ($options['subtree-nodeid']) {
+            $this->rootNode = $options['subtree-nodeid'];
+        }
         return $options;
     }
 
