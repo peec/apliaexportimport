@@ -128,8 +128,9 @@ class ApliaContentClassNodeExporter {
             try {
                 $object_id = $embed->getAttribute('object_id');
                 if ($object_id) {
-                    $relatedObject = eZContentObject::fetch($object_id);
-                    if ($relatedObject) {
+
+                    if (eZContentObject::exists($object_id)) {
+                        $relatedObject = eZContentObject::fetch($object_id);
                         $identifier = $relatedObject->attribute('class_identifier');
 
                         switch($identifier) {
@@ -220,15 +221,9 @@ class ApliaContentClassNodeExporter {
 
             $escapedValue = html_entity_decode($value);
 
-            if ($type == 'ezxmltext') {
                 $xmlNode = $rootElement->ownerDocument->createElement($attributeName);
                 $escapedValue = $rootElement->ownerDocument->createCDATASection($escapedValue);
                 $xmlNode->appendChild($escapedValue);
-            } else {
-
-                $xmlNode = $rootElement->ownerDocument->createElement($attributeName, $escapedValue);
-
-            }
 
 
             $xmlNode->setAttribute('type', $type);
@@ -249,6 +244,7 @@ class ApliaContentClassNodeExporter {
             'ClassFilterType' => 'include',
             'ClassFilterArray' => array($contentClass)
         ), $this->rootNode);
+
 
         $dom = new DOMDocument('1.0', 'utf-8');
         $root = $dom->createElement('export');
@@ -321,7 +317,7 @@ class ApliaContentClassNodeExporter {
         $this->script->startup();
 
 
-        $options = $this->script->getOptions( "[stop-at-index][start-at-index][subtree-nodeid]", "[CLASS_IDENTIFIER]", array(
+        $options = $this->script->getOptions( "[stop-at-index:][start-at-index:][subtree-nodeid:]", "[CLASS_IDENTIFIER]", array(
             'stop-at-index' => 'Stops after import of X nodes.',
             'start-at-index' => 'Starts after X nodes are iterated.',
             'subtree-nodeid' => 'Exports from the given root node. Default is 2 (ALL objects).'
@@ -348,8 +344,9 @@ class ApliaContentClassNodeExporter {
 
 
         if ($options['subtree-nodeid']) {
-            $this->rootNode = $options['subtree-nodeid'];
+            $this->rootNode = (int)$options['subtree-nodeid'];
         }
+
         return $options;
     }
 

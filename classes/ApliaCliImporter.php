@@ -277,7 +277,7 @@ class ApliaCliImporter {
 
         // Set the custom Image resolver.
         $this->setHtmlFieldParser(new ApliaHtmlToXmlFieldParser(
-            $config['image_resolver'] ? $config['image_resolver'] : ApliaHtmlToXmlFieldParser::defaultImageSrcResolver($tmpFolder, $exported_folder),
+            $config['image_resolver'] ? $config['image_resolver']($image_parent_node) : ApliaHtmlToXmlFieldParser::defaultImageSrcResolver($tmpFolder, $exported_folder),
             $image_parent_node
         ));
 
