@@ -12,6 +12,9 @@ class ApliaCliImporter {
 
     public $mapping;
 
+    /**
+     * @var ApliaHtmlToXmlFieldParser
+     */
     public $htmlParser;
 
     public $nodeCreator;
@@ -46,6 +49,13 @@ class ApliaCliImporter {
     public function setHtmlFieldParser(ApliaHtmlToXmlFieldParser $htmlParser) {
         $this->htmlParser = $htmlParser;
         $htmlParser->setDefaultNodeCreator($this->nodeCreator);
+    }
+
+    /**
+     * @return ApliaHtmlToXmlFieldParser
+     */
+    public function getHtmlParser () {
+        return $this->htmlParser;
     }
 
 
@@ -116,7 +126,8 @@ class ApliaCliImporter {
      * Parses the file.
      */
     public function parse ($xmlString) {
-        $xml = simplexml_load_string($xmlString);
+
+        $xml = simplexml_load_string($xmlString, null, LIBXML_NOCDATA);
         $count = count($xml);
         $toBeAdded = $this->stopAfterEntries == 0 ? $count : $this->stopAfterEntries;
         $i = 0;
@@ -131,6 +142,7 @@ class ApliaCliImporter {
             }
 
             $this->createNodeByMapping($xmlNode);
+
 
             if ($this->htmlParser) {
                 foreach($this->htmlParser->messages as $m) {

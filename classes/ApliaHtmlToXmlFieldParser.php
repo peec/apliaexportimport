@@ -22,6 +22,8 @@ class ApliaHtmlToXmlFieldParser {
      */
     const ALLOWED_TAGS = 'p,img[src],a[href],h1,h2,h3,h4,h5,h6,b,strong';
 
+    const SUPPORTED_EZ_TAGS = '<paragraph>,<section>,<header>,<embed>,<link>,<strong>,<b>';
+
 
     /**
      * Instance of purifier..
@@ -33,6 +35,8 @@ class ApliaHtmlToXmlFieldParser {
      * @var null
      */
     private $imageSrcResolverCallback  = null;
+
+    private $fileResolverCallback = null;
 
     /**
      * @var null
@@ -51,6 +55,8 @@ class ApliaHtmlToXmlFieldParser {
      * @var array
      */
     static $imageCache = array();
+
+
 
     /**
      * @param callable $imageSrcResolverCallback A FUNCTION TO RESOLVE IMG's tags src location..
@@ -113,13 +119,26 @@ class ApliaHtmlToXmlFieldParser {
         $that = $this;
         return function (Crawler $node, $i) use ($that) {
             $href = $node->attr('href');
+            $title = $node->attr('data-ez_name');
             if ($href) {
                 $that->log("HREF $href");
                 $oldNode = $node->getNode(0);
 
-                $urlID = eZURL::registerURL( $href );
-                $link = $this->dom_rename_element($oldNode, 'link', true);
-                $link->setAttribute('url_id', $urlID);
+                $fileLocation = call_user_func_array($this->fileResolverCallback, array($href));
+
+                // If its a file...
+                if ($fileLocation) {
+                    $that->log("Using image $fileLocation");
+                    $fileObjectId = $this->storeOrRetrieveCachedFile($fileLocation, $node->attr('data-ez_name'));
+                    $embed = $that->dom_rename_element($node->getNode(0), 'embed', true);
+                    $embed->setAttribute('view', 'embed');
+                    $embed->setAttribute('object_id', $fileObjectId);
+                // Its a URL.
+                } else {
+                    $urlID = eZURL::registerURL( $href );
+                    $link = $this->dom_rename_element($oldNode, 'link', true);
+                    $link->setAttribute('url_id', $urlID);
+                }
             } else {
                 $that->log("href not found on a tag.");
             }
@@ -162,10 +181,10 @@ class ApliaHtmlToXmlFieldParser {
         return function (Crawler $node, $i) use ($that) {
             $imageUrl = $node->attr('src');
             $imageLocation = call_user_func_array($this->imageSrcResolverCallback, array($imageUrl));
-            if ($imageUrl && $imageLocation) {
+            if ($imageLocation) {
                 if (file_exists($imageLocation)) {
                     $that->log("Using image $imageLocation");
-                    $imageObjectId = $this->storeOrRetrieveCachedImage($imageLocation);
+                    $imageObjectId = $this->storeOrRetrieveCachedImage($imageLocation, $node->attr('data-ez_name'));
                     $embed = $that->dom_rename_element($node->getNode(0), 'embed', true);
                     $embed->setAttribute('view', 'embed');
                     $embed->setAttribute('size', 'halfwidth');
@@ -174,7 +193,7 @@ class ApliaHtmlToXmlFieldParser {
                     $that->log("Could not find image $imageLocation in folder, skipping...");
                 }
             } else {
-                $that->log("src not found in img tag. Was $imageUrl , must be prefixed with: " . WEBARKIV_IMAGE_PREFIX_IN_HTML . ' to be valid.');
+                $that->log("src not found in img tag. Was $imageUrl. Create custom handler if you mean this should be checked.");
             }
         };
     }
@@ -214,10 +233,11 @@ class ApliaHtmlToXmlFieldParser {
      * If you try to upload the same image, again - it will not upload it twice, since it stores a cache as STATIC cache in this class.
      *
      * @param string $image_path A valid absolute path to an image. Should EXIST on the file system.
+     * @param string $name
      * @return int OBJECT ID of the image created.
      * @throws Exception
      */
-    public function storeOrRetrieveCachedImage ($image_path) {
+    public function storeOrRetrieveCachedImage ($image_path, $name = null) {
         if (isset(self::$imageCache[$image_path])) {
             return self::$imageCache[$image_path];
         }
@@ -233,7 +253,8 @@ class ApliaHtmlToXmlFieldParser {
         $params['storage_dir' ] = dirname($image_path) . '/';
 
         $attributesData = array ();
-        $attributesData['title'] = basename($image_path);
+
+        $attributesData['title'] = $name ? $name : basename($image_path);
         $attributesData['image'] = basename($image_path);
         $params['attributes'] = $attributesData;
 
@@ -249,6 +270,55 @@ class ApliaHtmlToXmlFieldParser {
         self::$imageCache[$image_path] = $contentObject->attribute( 'id' );
         return self::$imageCache[$image_path];
     }
+
+
+
+
+    /**
+     * Creates FILE in EZ if the path was not already uploaded.
+     *
+     * If you try to upload the same file, again - it will not upload it twice, since it stores a cache as STATIC cache in this class.
+     *
+     * @param string $image_path A valid absolute path to an image. Should EXIST on the file system.
+     * @param string $name
+     * @return int OBJECT ID of the image created.
+     * @throws Exception
+     */
+    public function storeOrRetrieveCachedFile ($file_path, $name = null) {
+        if (isset(self::$imageCache[$file_path])) {
+            return self::$imageCache[$file_path];
+        }
+
+        $parent_node = $this->imageStorageNodeLocation;
+        $creator = $this->creator;
+
+        $params = array();
+        $params['class_identifier'] = 'file'; //class name (found within setup=>classes in the admin if you need it
+        $params['creator_id'] = $creator->attribute( 'contentobject_id' ); //using the user created above
+        $params['parent_node_id'] = $parent_node->attribute( 'node_id' ); //pulling the node id out of the parent
+        $params['section_id'] = $parent_node->attribute( 'object' )->attribute( 'section_id' );
+        $params['storage_dir' ] = dirname($file_path) . '/';
+
+        $attributesData = array ();
+
+        $attributesData['title'] = $name ? $name : basename($file_path);
+        $attributesData['file'] = basename($file_path);
+        $params['attributes'] = $attributesData;
+
+        /** @var eZContentObject $contentObject */
+        $contentObject = eZContentFunctions::createAndPublishObject( $params );
+
+
+        if ( $contentObject ) {
+            $this->log( "Image created. Content Object ID: " . $contentObject->attribute( 'id' ) );
+        } else {
+            throw new Exception("Could not create image.");
+        }
+        self::$imageCache[$file_path] = $contentObject->attribute( 'id' );
+        return self::$imageCache[$file_path];
+    }
+
+
 
     /**
      * Parses HTML -> XMLField
@@ -297,6 +367,7 @@ class ApliaHtmlToXmlFieldParser {
         $content = preg_replace('#<paragraph>(\s+|\t+)</paragraph>#is', '', $content);
         $content = preg_replace('#<paragraph>(\s+|\t+)&nbsp;(\s+|\t+)</paragraph>#is', '', $content);
 
+        $content = strip_tags($content, self::SUPPORTED_EZ_TAGS);
 
 
 
@@ -364,18 +435,20 @@ class ApliaHtmlToXmlFieldParser {
      *
      *
      * @param $tempDir A VALID PATH TO A temporary location of where to store downloaded images. e.g. /tmp/myexportedimagestest
+     * @param $lookupVarPath A valid filesystem path
      * @return callable
      * @throws Exception
      */
-    static public function defaultImageSrcResolver ($tempDir) {
-        if (!is_dir($tempDir)) {
-            throw new Exception("\$tempDir must be a valid folder to put temporary downloaded images.");
-        }
+    static public function defaultImageSrcResolver ($tempDir, $lookupVarPath = null) {
 
-        return function ($imageUrl) use ($tempDir) {
+        return function ($imageUrl) use ($tempDir, $lookupVarPath) {
             $imageLocation = null;
             // here we can DL the image by $imageUrl.. but we already have all images in a folder so not needed..
             if (stripos($imageUrl, 'http') === 0) {
+                if (!is_dir($tempDir)) {
+                    mkdir($tempDir, 0777, true);
+                }
+
                 $filename = basename($imageUrl);
                 $path = "$tempDir/$filename";
                 if (!file_exists($path)) {
@@ -387,8 +460,32 @@ class ApliaHtmlToXmlFieldParser {
                 } else {
                     $imageLocation = $path;
                 }
+            } else if (strpos($imageUrl, 'var/') === 0) {
+                $loc = "$lookupVarPath/$imageUrl";
+                if (file_exists($loc)) {
+                    $imageLocation = $loc;
+                }
             }
             return $imageLocation;
+        };
+    }
+
+
+    public function setFileResolverDirectory($lookupVarPath) {
+        if (!is_dir($lookupVarPath)) {
+            throw new Exception("\$lookupVarPath ($lookupVarPath) must be a valid folder to put temporary downloaded files.");
+        }
+
+        $this->fileResolverCallback = function ($fileUrl) use ($lookupVarPath) {
+            $fileLocation = null;
+            // here we can DL the image by $imageUrl.. but we already have all images in a folder so not needed..
+            if (strpos($fileUrl, 'var/') === 0) {
+                $loc = "$lookupVarPath/$fileUrl";
+                if (file_exists($loc)) {
+                    $fileLocation = $loc;
+                }
+            }
+            return $fileLocation;
         };
     }
 

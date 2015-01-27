@@ -7,5 +7,5 @@ require dirname(__FILE__) . '/../../vendor/autoload.php';
 $cli = eZCLI::instance();
 $exporter = new ApliaContentClassNodeExporter();
 $exporter->useCLI($cli);
-$exporter->export('news_article', array('title', 'body'));
+$exporter->export('news_article');
 
