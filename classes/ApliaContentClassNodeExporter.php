@@ -10,6 +10,10 @@ class ApliaContentClassNodeExporter {
 
     public $cli, $script, $tpl;
 
+    public $stopAt = 0;
+
+    public $startAt = 0;
+
     private $exportFolder;
 
 
@@ -48,9 +52,11 @@ class ApliaContentClassNodeExporter {
         $src = $arrInfo['url'];
         $imagePath = eZSys::rootDir() . '/' . $arrInfo['full_path'];
 
-        if (file_exists($imagePath)) {
+        if (file_exists($imagePath) && is_file($imagePath) && !is_dir($imagePath)) {
             $exportPath = "{$this->exportFolder}/{$arrInfo['dirpath']}";
-            mkdir($exportPath, 0777, true);
+            if (!file_exists($exportPath)) {
+                mkdir($exportPath, 0777, true);
+            }
             copy($imagePath, "$exportPath/{$arrInfo['basename']}");
             $img->setAttribute('src', $src);
             $img->setAttribute('data-ez_name', $object->name());
@@ -85,7 +91,9 @@ class ApliaContentClassNodeExporter {
         if (file_exists($filePath)) {
             $src =  eZSys::storageDirectory() . "/original/application/{$content->Filename}";
             $exportPath = "{$this->exportFolder}/" . eZSys::storageDirectory() . "/original/application";
-            mkdir($exportPath, 0777, true);
+            if (!file_exists($exportPath)) {
+                mkdir($exportPath, 0777, true);
+            }
             copy($filePath, "$exportPath/{$content->Filename}");
             $a->setAttribute('href', $src);
             $a->setAttribute('data-ez_name', $object->name());
@@ -99,7 +107,8 @@ class ApliaContentClassNodeExporter {
         $xmlSource = strip_tags($attr->toString(), self::SUPPORTED_XMLTYPE_TAGS);
         $xmlSource = "<root>$xmlSource</root>";
         $dom = new DOMDocument('1.0', 'utf-8');
-        $dom->loadXML($xmlSource);
+        if (!@$dom->loadXML($xmlSource)) {
+        }
         $unresolvedNodes = array();
 
         // Paragraphs
@@ -206,6 +215,7 @@ class ApliaContentClassNodeExporter {
                 $value = call_user_func_array($attributeName, array($attribute, $type));
             }
 
+
             $escapedValue = html_entity_decode($value);
 
             if ($type == 'ezxmltext') {
@@ -227,6 +237,9 @@ class ApliaContentClassNodeExporter {
 
 
     public function export ($contentClass) {
+        if (!eZContentClass::fetchByIdentifier($contentClass)) {
+            throw new Exception("Content class identifier: '$contentClass' does not exist. It must exist to be exported.");
+        }
 
         $nodes = eZContentObjectTreeNode::subTreeByNodeID(array(
             'ClassFilterType' => 'include',
@@ -259,14 +272,19 @@ class ApliaContentClassNodeExporter {
 
         $i = 0;
         foreach($nodes as $node) {
+            if ($i < $this->startAt) {
+                $i++;
+                continue;
+            }
             $element = $dom->createElement($contentClass);
             $this->nodeToElement($attributesToExport, $node, $element);
             $root->appendChild($element);
 
-            if ($i == 20) {
-                break; // HACK REMOVE .
-            }
             $i++;
+
+            if ($this->stopAt && $i == $this->stopAt) {
+                break;
+            }
         }
 
         $xmlSource = $dom->saveXML();
@@ -279,7 +297,7 @@ class ApliaContentClassNodeExporter {
 
 
         if ($this->cli) {
-            $this->cli->output("DONE, see {$xmlFile}");
+            $this->cli->output("DONE, see {$xmlFile}, the folder is your export, put the folder in the install you want to import it too.");
             $this->script->shutdown();
         }
         return $xmlSource;
@@ -297,7 +315,34 @@ class ApliaContentClassNodeExporter {
             'debug-message' =>true) );
 
         $this->script->startup();
+
+
+        $options = $this->script->getOptions( "[stop-at-index][start-at-index]", "[CLASS_IDENTIFIER]", array(
+            'stop-at-index' => 'Stops after import of X nodes.',
+            'start-at-index' => 'Starts after X nodes are iterated.'
+        ));
+
+        if ( count( $options['arguments'] ) != 1 )
+        {
+            eZLog::write( "Wrong arguments count", 'publishqueue.log' );
+            $this->script->shutdown( 1, 'wrong argument count' );
+        }
+
+
+
         $this->script->initialize();
+
+
+        if ($options['stop-at-index']) {
+            $this->stopAt = $options['stop-at-index'];
+        }
+
+        if ($options['start-at-index']) {
+            $this->startAt = $options['start-at-index'];
+        }
+
+
+        return $options;
     }
 
 

@@ -1,8 +1,9 @@
 # Aplia Export Import
 
-Toolkit that contains classes to deal with export and import of content.
+Toolkit that contains classes to deal with export and import of content. It's very generic, it can export EZ data, import the content to another install.
 
-You will have to write some code yourself in order to import some data, but we try to keep this to a minimum.
+You can ALSO IMPORT REGUALR HTML to ez, it will resolve images etc etc as XML tags, even inline <img> tags.
+
 
 ## INSTALL
 
@@ -20,108 +21,30 @@ You will have to write some code yourself in order to import some data, but we t
 
 
 
-## IMPORTING DATA
+## Exporting All objects in a given contentclass
 
-You will need to create a script in `bin/php` of your *site extension*. So first create a new php file named `importarticlesfromwordpressinstall.php`.
-
-You then create a script that uses the tools inside this extension.
-
-
-Sample script: Here is the script we use to import data from UiA's old web archive:
+Here i want to export all "news_article" content objects. Don't worry, images inline and files in xml fields will also be added to the export..
 
 ```
-<?php
-/// VARIABLES ///
-define('STOP_AFTER_ENTRIES', 3);
-define('START_AT_INDEX', 0);
-define('IMAGE_UPLOAD_FOLDER_NODEID', 8224);
-define('ARTICLE_UPLOAD_FOLDER_NODEID', 8224);
+php extension/apliaexportimport/bin/php/exportcontentclass.php news_article
+```
 
-
-$mapping = array(
-
-    'contentclass' => 'news_article',
-
-    'fields' => array(
-
-        'title' => 'heading',
-
-        'body' => function ($xmlNode, ApliaCliImporter $apliaCliImporter) {
-            return $apliaCliImporter->htmlParser->parse((string)$xmlNode->content);
-        },
-
-        'intro' => function ($xmlNode) {
-            return ApliaHtmlToXmlFieldParser::stringToXMLField($xmlNode->ingress);
-        },
-
-        'author' => function ($xmlNode) {
-            $email = (string)$xmlNode->epost;
-            if ($email) {
-                $e = explode('@', $email);
-                if ($e[0]) {
-                    $ps = explode('.', $e[0]);
-                    if (count($ps)) {
-                        $name = '';
-                        foreach($ps as $p) {
-                            $name .= ucfirst($p) . ' ';
-                        }
-                        return "$name|$email|-1";
-                    }
-                }
-            }
-        }
-    ),
-
-    'publishTimeResolver' => function ($xmlNode) {
-        $publish_time = strtotime($xmlNode->publishDate);
-        return $publish_time;
-    }
-);
+- This creates a new folder in your EZ INSTALL: `export_{CONTENT_CLASS}`. This folder contains xml file and images and files.
+- Copy this folder to the other newer ez installation and you are ready for importing it..
 
 
 
-require 'autoload.php';
-require dirname(__FILE__) . '/../../../apliaexportimport/vendor/autoload.php';
+## IMPORTING DATA
+
+Importing requires you to create a simple php file, it can be created in the EZ ROOT directory. The extension comes with a sample php config file.
+
+See `extension/apliaexportimport/import.config.sample.php` its pretty straight forward.
 
 
-// What user we use to publish new objects. 'bot' might be a good username..
-$creator_user = eZUser::fetchByName('admin');
-// Where to put 'image' contentclass objects.
-$image_parent_node = eZContentObjectTreeNode::fetch(IMAGE_UPLOAD_FOLDER_NODEID);
-// Get WHERE to place new objects.
-$import_parent_node = eZContentObjectTreeNode::fetch(ARTICLE_UPLOAD_FOLDER_NODEID);
+Run this command to import after you have customized the config file for your contentclass!
 
-// Create a new importer
-$apliaCliIE = new ApliaCliImporter($mapping, $creator_user, $import_parent_node);
-// Set start
-$apliaCliIE->startAtIndex = START_AT_INDEX;
-$apliaCliIE->stopAfterEntries = STOP_AFTER_ENTRIES;
-
-// Set the custom Image resolver.
-$apliaCliIE->setHtmlFieldParser(new ApliaHtmlToXmlFieldParser(
-    function ($imageUrl) {
-        $imageLocation = null;
-        // here we can DL the image by $imageUrl.. but we already have all images in a folder so not needed..
-        if (strstr($imageUrl, 'http://www.hia.no/nettavis')) {
-            $imageLocation = str_ireplace('http://www.hia.no/nettavis', dirname(__FILE__) . '/webarkiv/', $imageUrl);
-        }
-        return $imageLocation;
-    },
-    $image_parent_node
-));
-
-
-// Cli involved.. Without this, we can run it by a http request if we'd want.
-$apliaCliIE->useCLI();
-
-// Import it.
-$apliaCliIE->import(
-    // The xml does not have charset, should have, so replace that.
-    str_replace('<?xml version="1.0"', '<?xml version="1.0" encoding="utf-8"', file_get_contents(dirname(__FILE__) . '/webarkiv/webarkiv_export.xml'))
-);
-
-
-
+```
+php extension/apliaexportimport/bin/php/importcontentclass.php extension/apliaexportimport/import.config.sample.php export_news_article export_news_article/export.xml
 ```
 
 

@@ -29,7 +29,11 @@ class ApliaCliImporter {
 
 
 
-    public function __construct (array $mapping,  $nodeCreator,  $parentNode) {
+    public function __construct () {
+
+    }
+
+    public function setRequiredDependencies (array $mapping,  $nodeCreator,  $parentNode) {
         $that = $this;
 
         $this->mapping = $mapping;
@@ -179,38 +183,140 @@ class ApliaCliImporter {
     public function useCLI () {
         set_time_limit ( 0 );
         $this->cli = eZCLI::instance();
+
+
+        $this->script = eZScript::instance( array( 'description' => ( "Import routine\n\n" .
+                ""),
+            'use-session' => false,
+            'use-modules' => true,
+            'use-extensions' => true,
+            'debug-output' => true,
+            'debug-message' =>true) );
+
+        $this->script->startup();
+
+
+        $options = $this->script->getOptions( "[stop-at-index][start-at-index]", "[CONFIG_FILE_PATH] [EXPORT_DIRECTORY_PATH] [EXPORT_XML_FILE_PATH]", array(
+            'stop-at-index' => 'Stops after import of X nodes.',
+            'start-at-index' => 'Starts after X nodes are iterated.'
+        ));
+
+
+
+        if ($options['stop-at-index']) {
+            $this->stopAfterEntries = $options['stop-at-index'];
+        }
+
+        if ($options['start-at-index']) {
+            $this->startAtIndex = $options['start-at-index'];
+        }
+        $this->script->initialize();
+
+        return $options;
+    }
+
+    public function importFromCli ($options) {
+
+        $config = array(
+            'image_resolver' => null,
+            'filter_before_xml' => null
+        );
+
+
+
+        if (!isset($options['arguments'][0])) {
+            $this->script->shutdown(1, 'Missing argument 1');
+        }
+        $confFile = eZSys::rootDir() . '/' . $options['arguments'][0];
+        if (!file_exists($confFile)) {
+            $this->script->shutdown( 1, 'First argument must point to a valid config file. see extension/apliaexportimport/import.config.sample.php' );
+        } else {
+            $config =  array_merge($config, require ($confFile));
+        }
+
+        if (!isset($options['arguments'][1])) {
+            $this->script->shutdown(1, 'Missing argument 2');
+        }
+        $exported_folder = eZSys::rootDir() . '/' . $options['arguments'][1];
+        if (!is_dir($exported_folder)) {
+            $this->script->shutdown( 1, 'Failed to find directory ('.$exported_folder.'). Second argument is the directory where the export var dir resides.' );
+        }
+
+
+        if (!isset($options['arguments'][2])) {
+            $this->script->shutdown(1, 'Missing argument 3');
+        }
+
+        $xmlFile = eZSys::rootDir() . '/' . $options['arguments'][2];
+
+        if (!file_exists($xmlFile)) {
+            $this->script->shutdown( 1, "Could not find XML file $xmlFile, RELATIVE TO EZ ROOT." );
+        }
+
+
+
+        // What user we use to publish new objects. 'bot' might be a good username..
+        $creator_user = eZUser::fetchByName($config['creator_user']);
+        // Where to put 'image' contentclass objects.
+        $image_parent_node = eZContentObjectTreeNode::fetch($config['create_images_inside_node']);
+        // Get WHERE to place new objects.
+        $import_parent_node = eZContentObjectTreeNode::fetch($config['create_imported_nodes_inside_node']);
+
+
+        $this->setRequiredDependencies($config['mapping'], $creator_user, $import_parent_node);
+
+
+        $tmpFolder = $this->createTemporaryDirectory();
+
+        if (!is_dir($tmpFolder)) {
+            throw new Exception("Could not create tmp folder, needed for image routine import.");
+        }
+
+
+
+
+        // Set the custom Image resolver.
+        $this->setHtmlFieldParser(new ApliaHtmlToXmlFieldParser(
+            $config['image_resolver'] ? $config['image_resolver'] : ApliaHtmlToXmlFieldParser::defaultImageSrcResolver($tmpFolder, $exported_folder),
+            $image_parent_node
+        ));
+
+        $this->getHtmlParser()->setFileResolverDirectory($exported_folder);
+
+
+        $str = file_get_contents($xmlFile);
+
+        if ($config['filter_before_xml']) {
+            $str = call_user_func_array($config['filter_before_xml'], array($str));
+        }
+
+        // Import it.
+        $this->import(
+            // The xml does not have charset, should have, so replace that.
+            $str
+        );
+
+        rmdir($tmpFolder);
     }
 
     public function out ($message) {
         call_user_func_array($this->outputHandler, array($message));
     }
 
+    private function createTemporaryDirectory($prefix='apliaexportimportroutine') {
+        $tempfile=tempnam(sys_get_temp_dir(),$prefix);
+        if (file_exists($tempfile)) { unlink($tempfile); }
+        mkdir($tempfile);
+        if (is_dir($tempfile)) { return $tempfile; }
+    }
+
     public function import ($xml) {
 
-        if ($this->cli) {
-            $script = eZScript::instance( array( 'description' => ( "Import routine\n\n" .
-                    ""),
-                'use-session' => false,
-                'use-modules' => true,
-                'use-extensions' => true,
-                'debug-output' => true,
-                'debug-message' =>true) );
-
-            $script->startup();
-            $script->initialize();
-
-            $this->out( 'Parent node for imported objects: '. $this->parentNode->attribute( 'name' ) );
-
-            $this->out("==== PRESS CTRL+C IF THIS IS NOT CORRECT, STARTING IN :::: 4 seconds :::: ====");
-            //sleep();
-
-
-        }
 
         $this->parse($xml);
 
         if ($this->cli) {
-            $script->shutdown();
+            $this->script->shutdown();
         }
     }
 
