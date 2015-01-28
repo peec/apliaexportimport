@@ -1,6 +1,6 @@
 # Aplia Export Import for eZ Publish legacy
 
-Lets you import any HTML to ez content objects, meaning import and export of data in ez.
+Lets you import any XML/HTML to ez content objects, meaning import and export of data in ez.
 
 Tested on:
 
@@ -12,13 +12,24 @@ Tested on:
 *Aplia Export Import* contains two routines. These are completely seprated, and does not nessecary need to be used together. Export is only for exporting eZ classes to html. Import can import any html to EZ objects.
 
 
-#### Export: EZ -> HTML
+#### Export: EZ -> XML
 
 Useful for converting some old installations content into a newer installation.
 
-#### Import: HTML -> EZ 
+Exports all attributes on a contentclass but some edge cases you should know:
+
+- For object relation attribute it only exports image and files. Since we dont want to export a large tree.
+- For XML Fields, embeds also just exports files and images.
+
+
+Export contains a folder with images and a XML file that can be imported with the import routine.
+
+
+#### Import: XML -> EZ
 
 Imports XML file with both HTML and attributes to eZ. A config handler is created per structure of the xml file you want to import.
+
+A Configuration file must be created, see the "IMPORTING DATA" section.
 
 
 ## INSTALL
@@ -43,7 +54,8 @@ php extension/apliaexportimport/bin/php/exportcontentclass.php news_article
 
 ## IMPORTING DATA
 
-Importing requires you to create a simple php file, it can be created in the EZ ROOT directory. The extension comes with a sample php config file.
+Importing requires you to create a simple php file, it can be created in the EZ ROOT directory. The extension comes with a sample php config file. See "CONFIG FILE"
+section for all the options for the config file.
 
 See `extension/apliaexportimport/import.config.sample.php` its pretty straight forward.
 
@@ -67,6 +79,40 @@ php extension/apliaexportimport/bin/php/importcontentclass.php extension/apliaex
 
 Config file can be quite advanced based on the XML you are importing. Here is a sample config containing some of the options.
 
+This config file in short:
+
+- Maps XML fields to eZ Content class attribute. It gives you the power to import xml files with other formats then the
+one we use in the export.
+- Allows filtering HTML before inserting it.
+- Allows to create custom image resolvers for images. For example if <img src="http://googleimages.com/..."> you want to
+DL the image and return the internal path to it from a callback using the `image_resolver` config.
+- Configure where to put the imported data in the EZ Content structure.
+- Configure where to put images/files.
+
+
+
+Here is a custom exported XML (not from the exportcontentclass.php):
+
+
+```
+<?xml version="1.0" ?>
+<export>
+        <node>
+                <heading>eqwwe med rom for eqw</heading>
+                <ingress>dqwd dqwdqw qwd qwdqwd qw</ingress>
+                <content>&lt;FONT size=2&gt;
+&lt;P&gt;&lt;IMG src=&quot;http://www.ewqwqwd.no/nettavis/bilder/Hernes3.jpg&quot;
+align=left&gt;wdqwe ewqewqJahr.&lt;/P&gt;&lt;/FONT&gt;</content>
+                <header>ewqqwe fag</header>
+                <epost>eqw.ewqwqe@ewq.no</epost>
+                <dato>2003-09-05 00:00:00</dato>
+                <endretdato>2003-09-05</endretdato>
+                <idag>05-09-03</idag>
+        </node>
+</export>
+```
+
+We can then create a config file like this:
 
 ```
 <?php return array(
@@ -85,15 +131,13 @@ Config file can be quite advanced based on the XML you are importing. Here is a 
         };
     },
 
-    // Remove all links from the export xml
-    // 'remove_tags_in_html' => array('a'),
 
     'remove_tag_handlers' => array(
         'a' => array(
             function (Crawler $node) {
                 if (
-                    stripos($node->attr('href'), 'http://hia') === 0 ||
-                    stripos($node->attr('href'), 'http://uia') === 0
+                    stripos($node->attr('href'), 'http://wedontwantthishost') === 0 ||
+                    stripos($node->attr('href'), 'http://neitherthis') === 0
 
                 ) {
                     return false;
@@ -157,5 +201,6 @@ Config file can be quite advanced based on the XML you are importing. Here is a 
 
 
 ```
+
 
 
