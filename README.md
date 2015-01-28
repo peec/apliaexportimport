@@ -54,6 +54,13 @@ Run this command to import after you have customized the config file for your co
 php extension/apliaexportimport/bin/php/importcontentclass.php extension/apliaexportimport/import.config.sample.php export_news_article export_news_article/export.xml
 ```
 
+### SYNTAX:
+
+
+```
+ php extension/apliaexportimport/bin/php/importcontentclass.php [Relative path to config.php file] [Relative path to the export archive, where images and files are found] [Relative path to the xml file is located]
+```
+
 
 
 

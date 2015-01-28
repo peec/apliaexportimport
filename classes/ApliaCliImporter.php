@@ -219,8 +219,51 @@ class ApliaCliImporter {
     public function importFromCli ($options) {
 
         $config = array(
+
+            /**
+             * Custom image resolver, for custom exports of e.g. wordpress or other content.
+             * @var callable
+             */
             'image_resolver' => null,
-            'filter_before_xml' => null
+
+            /**
+             * Filter the XML file before with a callback
+             * @var callable
+             */
+            'filter_before_xml' => null,
+
+            /**
+             * Remove these tags from the HTML.
+             * @var array
+             */
+            'remove_tags_in_html' => null,
+
+            /**
+             * Remove tag handlers.
+             *
+             * Example:
+             *
+             *
+             * 'remove_tag_handlers' => array(
+                'a' => array(
+                function (Crawler $node) {
+                if (
+                stripos($node->attr('href'), 'http://hia') === 0 ||
+                stripos($node->attr('href'), 'http://uia') === 0
+
+                ) {
+                return false;
+                } else {
+                return true;
+                }
+                }
+                )
+                ),
+             *
+             *
+             * @var array
+             */
+            'remove_tag_handlers' => null
         );
 
 
@@ -274,12 +317,26 @@ class ApliaCliImporter {
         }
 
 
+        $keepTheseHtmlTags = ApliaHtmlToXmlFieldParser::ALLOWED_TAGS;
+        if ($config['remove_tags_in_html']) {
+            $exp = explode(',', ApliaHtmlToXmlFieldParser::ALLOWED_TAGS);
+            foreach($exp as $k => $tagName) {
+                foreach($config['remove_tags_in_html'] as $removeThis) {
+                    if (substr($tagName, 0, strlen($removeThis)) == $removeThis) {
+                        unset ($exp[$k]);
+                    }
+                }
+            }
+            $keepTheseHtmlTags = implode(',', $exp);
+        }
+
 
 
         // Set the custom Image resolver.
         $this->setHtmlFieldParser(new ApliaHtmlToXmlFieldParser(
             $config['image_resolver'] ? $config['image_resolver']($image_parent_node) : ApliaHtmlToXmlFieldParser::defaultImageSrcResolver($tmpFolder, $exported_folder),
-            $image_parent_node
+            $image_parent_node,
+            $keepTheseHtmlTags
         ));
 
         $this->getHtmlParser()->setFileResolverDirectory($exported_folder);

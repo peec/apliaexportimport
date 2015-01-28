@@ -57,6 +57,13 @@ class ApliaHtmlToXmlFieldParser {
     static $imageCache = array();
 
 
+    /**
+     * @var array Multi dimensional array of tag => callable, callable should return FALSE if it should be excluded.
+     */
+    public $excludeTagHandlers = array();
+
+
+
 
     /**
      * @param callable $imageSrcResolverCallback A FUNCTION TO RESOLVE IMG's tags src location..
@@ -109,6 +116,25 @@ class ApliaHtmlToXmlFieldParser {
     }
 
 
+    public function addExcludeTagHandler($tagName, $callable) {
+        if (!isset($this->excludeTagHandlers[$tagName])) {
+            $this->excludeTagHandlers[$tagName] = array();
+        }
+        $this->excludeTagHandlers[$tagName][] = $callable;
+    }
+
+    private function checkExcludeTag ($tag, Crawler $node) {
+        if (isset($this->excludeTagHandlers[$tag])) {
+            foreach($this->excludeTagHandlers[$tag] as $k => $tagHandler) {
+                $result = call_user_func_array($tagHandler, array($node));
+                if ($result === false) {
+                    $this->log("Tag '$tag' was excluded with tagHandler '$k'. On purpose.'");
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 
     /**
      * Logic for manipulating --> A <-- tags .
@@ -120,6 +146,11 @@ class ApliaHtmlToXmlFieldParser {
         return function (Crawler $node, $i) use ($that) {
             $href = $node->attr('href');
             $title = $node->attr('data-ez_name');
+
+            if (!$this->checkExcludeTag('a', $node)) {
+                return;
+            }
+
             if ($href) {
                 $that->log("HREF $href");
                 $oldNode = $node->getNode(0);
@@ -155,6 +186,10 @@ class ApliaHtmlToXmlFieldParser {
         return function (Crawler $node, $i) use ($that) {
             $oldNode = $node->getNode(0);
 
+            if (!$this->checkExcludeTag('p', $node)) {
+                return;
+            }
+
             ApliaExportImportUtil::domRenameElement($oldNode, 'paragraph', true);
         };
     }
@@ -181,6 +216,11 @@ class ApliaHtmlToXmlFieldParser {
         return function (Crawler $node, $i) use ($that) {
             $imageUrl = $node->attr('src');
             $imageLocation = call_user_func_array($this->imageSrcResolverCallback, array($imageUrl));
+
+            if (!$this->checkExcludeTag('img', $node)) {
+                return;
+            }
+
 
             if ($imageLocation) {
 
