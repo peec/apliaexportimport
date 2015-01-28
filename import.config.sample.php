@@ -2,9 +2,9 @@
 
     'creator_user' => 'admin',
 
-    'create_images_inside_node' => 8339,
+    'create_images_inside_node' => 8810,
 
-    'create_imported_nodes_inside_node' => 8339,
+    'create_imported_nodes_inside_node' => 8810,
 
     'mapping' => array(
         'contentclass' => 'news_article',
@@ -18,6 +18,9 @@
                 },
             'intro' => function ($xmlNode, ApliaCliImporter $apliaCliImporter) {
                     return $apliaCliImporter->htmlParser->parse((string)$xmlNode->intro);
+                },
+            'image' => function ($xmlNode, ApliaCliImporter $apliaCliImporter) {
+                    return $apliaCliImporter->htmlParser->imageOrFileToObjectRelationId((string)$xmlNode->image);
                 }
         )
     )

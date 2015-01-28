@@ -130,13 +130,13 @@ class ApliaHtmlToXmlFieldParser {
                 if ($fileLocation) {
                     $that->log("Using image $fileLocation");
                     $fileObjectId = $this->storeOrRetrieveCachedFile($fileLocation, $node->attr('data-ez_name'));
-                    $embed = $that->dom_rename_element($node->getNode(0), 'embed', true);
+                    $embed = ApliaExportImportUtil::domRenameElement($node->getNode(0), 'embed', true);
                     $embed->setAttribute('view', 'embed');
                     $embed->setAttribute('object_id', $fileObjectId);
                 // Its a URL.
                 } else {
                     $urlID = eZURL::registerURL( $href );
-                    $link = $this->dom_rename_element($oldNode, 'link', true);
+                    $link = ApliaExportImportUtil::domRenameElement($oldNode, 'link', true);
                     $link->setAttribute('url_id', $urlID);
                 }
             } else {
@@ -155,7 +155,7 @@ class ApliaHtmlToXmlFieldParser {
         return function (Crawler $node, $i) use ($that) {
             $oldNode = $node->getNode(0);
 
-            $that->dom_rename_element($oldNode, 'paragraph', true);
+            ApliaExportImportUtil::domRenameElement($oldNode, 'paragraph', true);
         };
     }
 
@@ -181,16 +181,22 @@ class ApliaHtmlToXmlFieldParser {
         return function (Crawler $node, $i) use ($that) {
             $imageUrl = $node->attr('src');
             $imageLocation = call_user_func_array($this->imageSrcResolverCallback, array($imageUrl));
+
             if ($imageLocation) {
-                if (file_exists($imageLocation)) {
-                    $that->log("Using image $imageLocation");
-                    $imageObjectId = $this->storeOrRetrieveCachedImage($imageLocation, $node->attr('data-ez_name'));
-                    $embed = $that->dom_rename_element($node->getNode(0), 'embed', true);
-                    $embed->setAttribute('view', 'embed');
-                    $embed->setAttribute('size', 'halfwidth');
-                    $embed->setAttribute('object_id', $imageObjectId);
+
+                if (@exif_imagetype($imageLocation)) {
+                    if (file_exists($imageLocation)) {
+                        $that->log("Using image $imageLocation");
+                        $imageObjectId = $this->storeOrRetrieveCachedImage($imageLocation, $node->attr('data-ez_name'));
+                        $embed = ApliaExportImportUtil::domRenameElement($node->getNode(0), 'embed', true);
+                        $embed->setAttribute('view', 'embed');
+                        $embed->setAttribute('size', 'halfwidth');
+                        $embed->setAttribute('object_id', $imageObjectId);
+                    } else {
+                        $that->log("Could not find image $imageLocation in folder, skipping...");
+                    }
                 } else {
-                    $that->log("Could not find image $imageLocation in folder, skipping...");
+                    $that->log("Corrupted image found in image tag: $imageLocation, skipping that one. (tested with exif_imagetype).");
                 }
             } else {
                 $that->log("src not found in img tag. Was $imageUrl. Create custom handler if you mean this should be checked.");
@@ -201,7 +207,7 @@ class ApliaHtmlToXmlFieldParser {
     public function tagBODY () {
         $that = $this;
         return function (Crawler $node, $i) use ($that) {
-            $section = $that->dom_rename_element($node->getNode(0), 'section');
+            $section = ApliaExportImportUtil::domRenameElement($node->getNode(0), 'section');
             $section->setAttribute('xmlns:image', 'http://ez.no/namespaces/ezpublish3/image/');
             $section->setAttribute('xmlns:xhtml', 'http://ez.no/namespaces/ezpublish3/xhtml/');
             $section->setAttribute('xmlns:custom', 'http://ez.no/namespaces/ezpublish3/custom/');
@@ -212,7 +218,7 @@ class ApliaHtmlToXmlFieldParser {
         $that = $this;
 
         return function (Crawler $node, $i) use ($that) {
-            $section = $that->dom_rename_element($node->getNode(0), 'header');
+            $section = ApliaExportImportUtil::domRenameElement($node->getNode(0), 'header');
             preg_match('/h(\d+)/', $node->nodeName(), $matches);
             $level = isset($matches[1]) ? $matches[1] : 6;
             $section->setAttribute('level', $level);
@@ -222,7 +228,7 @@ class ApliaHtmlToXmlFieldParser {
     public function tagB() {
         $that = $this;
         return function (Crawler $node, $i) use ($that) {
-            $section = $that->dom_rename_element($node->getNode(0), 'strong');
+            $section = ApliaExportImportUtil::domRenameElement($node->getNode(0), 'strong');
         };
     }
 
@@ -310,7 +316,7 @@ class ApliaHtmlToXmlFieldParser {
 
 
         if ( $contentObject ) {
-            $this->log( "Image created. Content Object ID: " . $contentObject->attribute( 'id' ) );
+            $this->log( "File created. Content Object ID: " . $contentObject->attribute( 'id' ) );
         } else {
             throw new Exception("Could not create image.");
         }
@@ -375,30 +381,6 @@ class ApliaHtmlToXmlFieldParser {
     }
 
     /**
-     * Renames a node to another name.
-     * @param DOMElement $node
-     * @param $name
-     * @param bool $skipAttributeCopy
-     * @return DOMElement
-     */
-    public function dom_rename_element(DOMElement $node, $name, $skipAttributeCopy=false) {
-        $renamed = $node->ownerDocument->createElement($name);
-
-        if (!$skipAttributeCopy) {
-            foreach ($node->attributes as $attribute) {
-                $renamed->setAttribute($attribute->nodeName, $attribute->nodeValue);
-            }
-        }
-
-        while ($node->firstChild) {
-            $renamed->appendChild($node->firstChild);
-        }
-
-        $node->parentNode->replaceChild($renamed, $node);
-        return $renamed;
-    }
-
-    /**
      * Just converts a simple string to a XML field. Strips all the tags in $content.
      * @param $content Note, tags will be stripped.
      * @return string
@@ -426,6 +408,31 @@ class ApliaHtmlToXmlFieldParser {
 
     public function log($message) {
         $this->messages[] = $message;
+    }
+
+
+
+    /**
+     * Parses IMG or A tag to relation id ( file or image ).
+     * @param $html
+     */
+    public function imageOrFileToObjectRelationId ($html) {
+        if (!trim($html)) {
+            return null;
+        }
+
+        $xml = $this->parse($html);
+        $dom = new DOMDocument('1.0', 'utf-8');
+        $dom->loadXML($xml);
+        $path = new DOMXPath($dom);
+        $embeds = $path->query('//embed');
+
+        if ($embeds->length) {
+            $e = $embeds->item(0);
+            return $e->getAttribute('object_id');
+        } else {
+            return null;
+        }
     }
 
 

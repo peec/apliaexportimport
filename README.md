@@ -1,8 +1,24 @@
-# Aplia Export Import
+# Aplia Export Import for eZ Publish legacy
 
-Toolkit that contains classes to deal with export and import of content. It's very generic, it can export EZ data, import the content to another install.
+Lets you import any HTML to ez content objects, meaning import and export of data in ez.
 
-You can ALSO IMPORT REGUALR HTML to ez, it will resolve images etc etc as XML tags, even inline <img> tags.
+Tested on:
+
+- eZ Publish 4.4 - 5.3
+
+
+## Explained
+
+*Aplia Export Import* contains two routines. These are completely seprated, and does not nessecary need to be used together. Export is only for exporting eZ classes to html. Import can import any html to EZ objects.
+
+
+#### Export: EZ -> HTML
+
+Useful for converting some old installations content into a newer installation.
+
+#### Import: HTML -> EZ 
+
+Imports XML file with both HTML and attributes to eZ. A config handler is created per structure of the xml file you want to import.
 
 
 ## INSTALL
@@ -10,15 +26,6 @@ You can ALSO IMPORT REGUALR HTML to ez, it will resolve images etc etc as XML ta
 - Add the extension in your project `git submodule add git@git.aplia.no:library/apliaexportimport.git extension/apliaexportimport`.
 - Go into the extension folder ( extension/apliaexportimport )
 - Run command: `composer install`, this will install  all the required dependencies.
-
-
-
-## GENERAL NOTE
-
-- Can import an XML file.
-- Exports EZ Objects to XML.
-- Can import XML files extracted from e.g. wordpress, etc.... (You must create the wordpress export script yourself).
-
 
 
 ## Exporting All objects in a given contentclass
@@ -47,12 +54,6 @@ Run this command to import after you have customized the config file for your co
 php extension/apliaexportimport/bin/php/importcontentclass.php extension/apliaexportimport/import.config.sample.php export_news_article export_news_article/export.xml
 ```
 
-
-
-#### ApliaHtmlToXmlFieldParser
-
-This class can create XML-Fields from regular HTML. It deals with image tags, etc. downloads images creates eZ images
-out of it etc. It also converts the HTML to valid XML that should be inserted to the XML-field on the contentclass.
 
 
 

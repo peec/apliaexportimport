@@ -172,6 +172,7 @@ class ApliaCliImporter {
         }
     }
 
+
     public function getAvgParseTime () {
         $s = 0;
         foreach($this->parseTimes as $t) {
