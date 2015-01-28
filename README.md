@@ -63,5 +63,99 @@ php extension/apliaexportimport/bin/php/importcontentclass.php extension/apliaex
 
 
 
+## CONFIG FILE
+
+Config file can be quite advanced based on the XML you are importing. Here is a sample config containing some of the options.
+
+
+```
+<?php return array(
+    'filter_before_xml' => function ($xml) {
+        return str_replace('<?xml version="1.0"', '<?xml version="1.0" encoding="utf-8"', $xml);
+    },
+
+    'image_resolver' => function ($image_parent_node) {
+        return function ($imageUrl) {
+            $imageLocation = null;
+            // here we can DL the image by $imageUrl.. but we already have all images in a folder so not needed..
+            if (strstr($imageUrl, 'http://www.hia.no/nettavis')) {
+                $imageLocation = str_ireplace('http://www.hia.no/nettavis',  eZSys::rootDir(). '/webarkiv/', $imageUrl);
+            }
+            return $imageLocation;
+        };
+    },
+
+    // Remove all links from the export xml
+    // 'remove_tags_in_html' => array('a'),
+
+    'remove_tag_handlers' => array(
+        'a' => array(
+            function (Crawler $node) {
+                if (
+                    stripos($node->attr('href'), 'http://hia') === 0 ||
+                    stripos($node->attr('href'), 'http://uia') === 0
+
+                ) {
+                    return false;
+                } else {
+                    return true;
+                }
+            }
+        )
+    ),
+
+    'creator_user' => 'admin',
+
+    'create_images_inside_node' => 8339,
+
+    'create_imported_nodes_inside_node' => 8339,
+
+    'mapping' => array(
+
+        'contentclass' => 'news_article',
+
+        'fields' => array(
+
+            'title' => 'heading', // <-- no call back, no filtering needed. just set the attribute of the xml field.
+
+            'body' => function ($xmlNode, ApliaCliImporter $apliaCliImporter) {
+                    return $apliaCliImporter->htmlParser->parse((string)$xmlNode->content);
+                },
+
+            'intro' => function ($xmlNode) {
+                    return ApliaHtmlToXmlFieldParser::stringToXMLField((string)$xmlNode->ingress);
+                },
+
+            'author' => function ($xmlNode) {
+                    $email = (string)$xmlNode->epost;
+                    if ($email) {
+                        $e = explode('@', $email);
+                        if ($e[0]) {
+                            $ps = explode('.', $e[0]);
+                            if (count($ps)) {
+                                $name = '';
+                                foreach($ps as $p) {
+                                    $name .= ucfirst($p) . ' ';
+                                }
+                                return "$name|$email|-1";
+                            }
+                        }
+                    }
+                }
+        ),
+
+        'publishTimeResolver' => function ($xmlNode) {
+                $publish_time = strtotime((string)$xmlNode->publishDate);
+                return $publish_time;
+            },
+        'modificationTimeResolver' => function ($xmlNode) {
+                $mod_time = strtotime((string)$xmlNode->endretdato);
+                return $mod_time;
+            }
+    )
+);
+
+
+```
 
 
