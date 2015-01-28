@@ -85,6 +85,14 @@ class ApliaContentClassNodeExporter {
 
             $rootElement->appendChild($xmlNode);
         }
+
+        /** @var eZContentObjectVersion $o */
+        $o = $node->contentObjectVersionObject();
+
+        $el = $rootElement->ownerDocument->createElement('created', $o->attribute('created'));
+        $rootElement->appendChild($el);
+        $el = $rootElement->ownerDocument->createElement('modified', $o->attribute('modified'));
+        $rootElement->appendChild($el);
     }
 
 
@@ -155,7 +163,6 @@ class ApliaContentClassNodeExporter {
         }
 
         $xmlSource = $dom->saveXML();
-
 
 
 
