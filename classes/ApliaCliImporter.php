@@ -97,8 +97,11 @@ class ApliaCliImporter {
                 $this->out("Publish time $publish_time");
                 /** @var eZContentObjectVersion $version */
                 $version = $contentObject->currentVersion();
+
+                $contentObject->setAttribute('published', $publish_time);
                 $version->setAttribute('created', $publish_time);
                 $version->store();
+                $contentObject->store();
             } else {
                 $this->out("Could not convert publish time");
             }
@@ -108,9 +111,11 @@ class ApliaCliImporter {
             $mod_time = call_user_func_array($this->mapping['modificationTimeResolver'], array($xmlNode, $this));
             if ($mod_time) {
                 /** @var eZContentObjectVersion $version */
+                $contentObject->setAttribute('modified', $mod_time);
                 $version = $contentObject->currentVersion();
                 $version->setAttribute('modified', $mod_time);
                 $version->store();
+                $contentObject->store();
             } else {
                 $this->out("Could not convert modification time");
             }
@@ -197,7 +202,7 @@ class ApliaCliImporter {
         $this->script->startup();
 
 
-        $options = $this->script->getOptions( "[stop-at-index][start-at-index]", "[CONFIG_FILE_PATH] [EXPORT_DIRECTORY_PATH] [EXPORT_XML_FILE_PATH]", array(
+        $options = $this->script->getOptions( "[stop-at-index:][start-at-index:]", "[CONFIG_FILE_PATH] [EXPORT_DIRECTORY_PATH] [EXPORT_XML_FILE_PATH]", array(
             'stop-at-index' => 'Stops after import of X nodes.',
             'start-at-index' => 'Starts after X nodes are iterated.'
         ));
@@ -263,7 +268,15 @@ class ApliaCliImporter {
              *
              * @var array
              */
-            'remove_tag_handlers' => null
+            'remove_tag_handlers' => null,
+
+
+            /**
+             * Custom tag handler.
+             *
+             * @var callable DomElement is passed as argument.
+             */
+            'custom_tag_handler' => null
         );
 
 
@@ -341,6 +354,17 @@ class ApliaCliImporter {
 
         $this->getHtmlParser()->setFileResolverDirectory($exported_folder);
 
+        if ($config['remove_tag_handlers']) {
+            foreach($config['remove_tag_handlers'] as $tagName => $handlers) {
+                foreach($handlers as $handler) {
+                    $this->getHtmlParser()->addExcludeTagHandler($tagName, $handler);
+                }
+            }
+        }
+
+        if ($config['custom_tag_handler']) {
+            $this->getHtmlParser()->setCustomXmlTagHandler($config['custom_tag_handler']);
+        }
 
         $str = file_get_contents($xmlFile);
 

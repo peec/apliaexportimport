@@ -63,6 +63,8 @@ class ApliaHtmlToXmlFieldParser {
     public $excludeTagHandlers = array();
 
 
+    private $xmlTagHandler;
+
 
 
     /**
@@ -159,11 +161,12 @@ class ApliaHtmlToXmlFieldParser {
 
                 // If its a file...
                 if ($fileLocation) {
-                    $that->log("Using image $fileLocation");
+                    $that->log("Using file $fileLocation");
                     $fileObjectId = $this->storeOrRetrieveCachedFile($fileLocation, $node->attr('data-ez_name'));
                     $embed = ApliaExportImportUtil::domRenameElement($node->getNode(0), 'embed', true);
                     $embed->setAttribute('view', 'embed');
                     $embed->setAttribute('object_id', $fileObjectId);
+                    $this->handleCustomXmlModifications($embed);
                 // Its a URL.
                 } else {
                     $urlID = eZURL::registerURL( $href );
@@ -206,6 +209,17 @@ class ApliaHtmlToXmlFieldParser {
     }
 
 
+    public function setCustomXmlTagHandler($xmlTagHandler) {
+        $this->xmlTagHandler = $xmlTagHandler;
+    }
+
+
+    public function handleCustomXmlModifications (DOMElement $element) {
+        if ($this->xmlTagHandler) {
+            call_user_func_array($this->xmlTagHandler, array($element));
+        }
+    }
+
     /**
      * Logic for manipulating --> IMG <-- tags .
      *
@@ -230,8 +244,9 @@ class ApliaHtmlToXmlFieldParser {
                         $imageObjectId = $this->storeOrRetrieveCachedImage($imageLocation, $node->attr('data-ez_name'));
                         $embed = ApliaExportImportUtil::domRenameElement($node->getNode(0), 'embed', true);
                         $embed->setAttribute('view', 'embed');
-                        $embed->setAttribute('size', 'halfwidth');
+                        $embed->setAttribute('size', 'original');
                         $embed->setAttribute('object_id', $imageObjectId);
+                        $this->handleCustomXmlModifications($embed);
                     } else {
                         $that->log("Could not find image $imageLocation in folder, skipping...");
                     }
