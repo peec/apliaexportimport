@@ -66,6 +66,40 @@ Run this command to import after you have customized the config file for your co
 php extension/apliaexportimport/bin/php/importcontentclass.php extension/apliaexportimport/import.config.sample.php export_news_article export_news_article/export.xml
 ```
 
+#### Requirements for xml file
+
+- One root node
+- One node for each object to be inserted.
+- HTML fields must be escaped or used with CDATA
+
+Sample below:
+
+```
+<?xml version="1.0" ?>
+<export>
+        <node>
+            <title>Hello</title>
+            <content>&lt;FONT size=2&gt;
+            &lt;P&gt;&lt;IMG src=&quot;http://www.ewqwqwd.no/nettavis/bilder/eqw.jpg&quot;
+            align=left&gt;wdqwe ewqewqJahr.&lt;/P&gt;&lt;/FONT&gt;</content>
+        </node>
+        <node>
+            <title>Hello 2</title>
+            <content>&lt;FONT size=2&gt;
+            &lt;P&gt;&lt;IMG src=&quot;http://www.ew.no/nettavis/bilder/ewweq.jpg&quot;
+            align=left&gt;wdqwe ewqewqJahr.&lt;/P&gt;&lt;/FONT&gt;</content>
+        </node>
+        <node>
+            <title>Hello 3</title>
+            <content>&lt;FONT size=2&gt;
+            &lt;P&gt;&lt;IMG src=&quot;http://www.qw.no/nettavis/bilder/ewq.jpg&quot;
+            align=left&gt;wdqwe ewqewqJahr.&lt;/P&gt;&lt;/FONT&gt;</content>
+        </node>
+</export>
+```
+
+
+
 ### SYNTAX:
 
 
@@ -154,6 +188,7 @@ We can then create a config file like this:
 
     'create_imported_nodes_inside_node' => 8339,
 
+    // Mapping is based on how the XML file is and the content class.
     'mapping' => array(
 
         'contentclass' => 'news_article',

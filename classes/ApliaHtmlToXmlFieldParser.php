@@ -149,7 +149,7 @@ class ApliaHtmlToXmlFieldParser {
             $href = $node->attr('href');
             $title = $node->attr('data-ez_name');
 
-            if (!$this->checkExcludeTag('a', $node)) {
+            if (!$that->checkExcludeTag('a', $node)) {
                 return;
             }
 
@@ -157,16 +157,16 @@ class ApliaHtmlToXmlFieldParser {
                 $that->log("HREF $href");
                 $oldNode = $node->getNode(0);
 
-                $fileLocation = call_user_func_array($this->fileResolverCallback, array($href));
+                $fileLocation = call_user_func_array($that->fileResolverCallback, array($href));
 
                 // If its a file...
                 if ($fileLocation) {
                     $that->log("Using file $fileLocation");
-                    $fileObjectId = $this->storeOrRetrieveCachedFile($fileLocation, $node->attr('data-ez_name'));
+                    $fileObjectId = $that->storeOrRetrieveCachedFile($fileLocation, $node->attr('data-ez_name'));
                     $embed = ApliaExportImportUtil::domRenameElement($node->getNode(0), 'embed', true);
                     $embed->setAttribute('view', 'embed');
                     $embed->setAttribute('object_id', $fileObjectId);
-                    $this->handleCustomXmlModifications($embed);
+                    $that->handleCustomXmlModifications($embed);
                 // Its a URL.
                 } else {
                     $urlID = eZURL::registerURL( $href );
@@ -189,7 +189,7 @@ class ApliaHtmlToXmlFieldParser {
         return function (Crawler $node, $i) use ($that) {
             $oldNode = $node->getNode(0);
 
-            if (!$this->checkExcludeTag('p', $node)) {
+            if (!$that->checkExcludeTag('p', $node)) {
                 return;
             }
 
