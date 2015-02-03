@@ -125,7 +125,7 @@ class ApliaHtmlToXmlFieldParser {
         $this->excludeTagHandlers[$tagName][] = $callable;
     }
 
-    private function checkExcludeTag ($tag, Crawler $node) {
+    public function checkExcludeTag ($tag, Crawler $node) {
         if (isset($this->excludeTagHandlers[$tag])) {
             foreach($this->excludeTagHandlers[$tag] as $k => $tagHandler) {
                 $result = call_user_func_array($tagHandler, array($node));
