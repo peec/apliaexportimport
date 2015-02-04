@@ -29,24 +29,24 @@ class ApliaHtmlToXmlFieldParser {
      * Instance of purifier..
      * @var HTMLPurifier
      */
-    private $purifier;
+    public $purifier;
 
     /**
      * @var null
      */
-    private $imageSrcResolverCallback  = null;
+    public $imageSrcResolverCallback  = null;
 
-    private $fileResolverCallback = null;
-
-    /**
-     * @var null
-     */
-    private $creator = null;
+    public $fileResolverCallback = null;
 
     /**
      * @var null
      */
-    private $imageStorageNodeLocation = null;
+    public $creator = null;
+
+    /**
+     * @var null
+     */
+    public $imageStorageNodeLocation = null;
 
     public $messages = array();
 
@@ -63,7 +63,7 @@ class ApliaHtmlToXmlFieldParser {
     public $excludeTagHandlers = array();
 
 
-    private $xmlTagHandler;
+    public $xmlTagHandler;
 
 
 
@@ -229,9 +229,9 @@ class ApliaHtmlToXmlFieldParser {
         $that = $this;
         return function (Crawler $node, $i) use ($that) {
             $imageUrl = $node->attr('src');
-            $imageLocation = call_user_func_array($this->imageSrcResolverCallback, array($imageUrl));
+            $imageLocation = call_user_func_array($that->imageSrcResolverCallback, array($imageUrl));
 
-            if (!$this->checkExcludeTag('img', $node)) {
+            if (!$that->checkExcludeTag('img', $node)) {
                 return;
             }
 
@@ -241,12 +241,12 @@ class ApliaHtmlToXmlFieldParser {
                 if (@exif_imagetype($imageLocation)) {
                     if (file_exists($imageLocation)) {
                         $that->log("Using image $imageLocation");
-                        $imageObjectId = $this->storeOrRetrieveCachedImage($imageLocation, $node->attr('data-ez_name'));
+                        $imageObjectId = $that->storeOrRetrieveCachedImage($imageLocation, $node->attr('data-ez_name'));
                         $embed = ApliaExportImportUtil::domRenameElement($node->getNode(0), 'embed', true);
                         $embed->setAttribute('view', 'embed');
                         $embed->setAttribute('size', 'original');
                         $embed->setAttribute('object_id', $imageObjectId);
-                        $this->handleCustomXmlModifications($embed);
+                        $that->handleCustomXmlModifications($embed);
                     } else {
                         $that->log("Could not find image $imageLocation in folder, skipping...");
                     }
