@@ -239,3 +239,38 @@ We can then create a config file like this:
 
 
 
+#### Run import script many times, exclude already added.
+
+Sometimes you see that you need to run the import script again, add a custom ignore handler to the config script:
+
+
+
+
+```php
+
+'skip_node_handler' => function ($xmlNode, $settings) {
+        $title = $xmlNode->title;
+        $founds = eZContentObjectTreeNode::subTreeByNodeID(
+            array(
+                'ClassFilterType', 'include',
+                'ClassFilterArray', array($settings['mapping']['contentclass']),
+                'Depth'=>1,
+                'Limit' => 1,
+                'Limitation' => array(),
+                'AttributeFilter' => array('and',array($settings['mapping']['contentclass'] . '/title', '=', $title))
+            ), $settings['create_imported_nodes_inside_node']);
+
+        if ($founds) {
+            return "Object with that name ($title) already exist..";
+        }
+
+        return false;
+},
+
+```
+
+This will:
+
+- Only import the xml node, if it was not imported from before. It checks on the title attribute.
+
+

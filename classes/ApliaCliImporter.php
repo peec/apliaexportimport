@@ -25,6 +25,8 @@ class ApliaCliImporter {
 
     public $startAtIndex = 0;
 
+    private $skipNodeHandler;
+
     private $parseTimes = array();
 
 
@@ -149,6 +151,14 @@ class ApliaCliImporter {
                 $i++;
                 continue;
             }
+
+            if ($this->skipNodeHandler) {
+                if ($return = call_user_func($this->skipNodeHandler, $xmlNode))  {
+                    $this->out("Skipping xmlNode $i because of handler said: $return .");
+                    continue;
+                }
+            }
+
 
             $this->createNodeByMapping($xmlNode);
 
@@ -276,7 +286,14 @@ class ApliaCliImporter {
              *
              * @var callable DomElement is passed as argument.
              */
-            'custom_tag_handler' => null
+            'custom_tag_handler' => null,
+
+
+            /**
+             * Handler to skip a XML node based on things.
+             * @var callable
+             */
+            'skip_node_handler' => null
         );
 
 
@@ -365,6 +382,14 @@ class ApliaCliImporter {
         if ($config['custom_tag_handler']) {
             $this->getHtmlParser()->setCustomXmlTagHandler($config['custom_tag_handler']);
         }
+
+
+        if ($config['skip_node_handler']) {
+            $this->skipNodeHandler = function ($xmlNode) use ($config) {
+                return call_user_func_array($config['skip_node_handler'], array($xmlNode, $config));
+            };
+        }
+
 
         $str = file_get_contents($xmlFile);
 
